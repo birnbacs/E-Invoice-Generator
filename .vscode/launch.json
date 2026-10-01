@@ -1,0 +1,44 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:BMW-E-Invoice}",
+            "name": "Debug invoice-cli",
+            "target": "invoice-cli",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug invoice-cli"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:BMW-E-Invoice}",
+            "name": "Release invoice-cli",
+            "target": "invoice-cli",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release invoice-cli"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:BMW-E-Invoice}",
+            "name": "Debug InvoiceApp",
+            "target": "InvoiceApp",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug InvoiceApp"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:BMW-E-Invoice}",
+            "name": "Release InvoiceApp",
+            "target": "InvoiceApp",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release InvoiceApp"
+        }
+    ]
+}
