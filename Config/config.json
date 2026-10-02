@@ -1,34 +1,7 @@
 {
   "currency": "EUR",
+  "buyerID": "A1",
   "hourlyRate": "270.00",
   "referenceNotePrefix": "REF. ",
-  "disbursementExemptionReason": "Durchlaufender Posten gemäß § 10 Abs. 1 Satz 6 UStG",
-  "seller": {
-    "id": "125593-10",
-    "name": "Zweibrücken IP",
-    "contactName": "Sebastian Birnbach",
-    "phone": "089 3564717-20",
-    "email": "mail@zweibruecken-ip.de",
-    "street": "Frauenstr. 26",
-    "postcode": "80469",
-    "city": "München",
-    "country": "DE",
-    "vatId": "DE258629650"
-  },
-  "buyer": {
-    "id": "A1",
-    "name": "BMW AG",
-    "defaultContactName": "",
-    "addressLine": "Patentabteilung",
-    "postcode": "80788",
-    "city": "München",
-    "country": "DE",
-    "vatId": "DE129273398"
-  },
-  "payment": {
-    "iban": "DE19 1203 0000 1013 7737 57",
-    "bic": "BYLADEM1001",
-    "accountHolder": "Sebastian Birnbach",
-    "terms": "Zahlbar innerhalb von 20 Tagen nach Erhalt der Rechnung ohne Abzug."
-  }
+  "disbursementExemptionReason": "Durchlaufender Posten gemäß § 10 Abs. 1 Satz 6 UStG"
 }

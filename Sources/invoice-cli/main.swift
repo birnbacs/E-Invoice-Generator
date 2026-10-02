@@ -61,7 +61,7 @@ do {
     print("Aktenzeichen:      \(inv.fileReference)  →  BT-22 „\(config.referenceNotePrefix)\(inv.fileReference)“")
     print("Unser Zeichen:     \(inv.ourReference ?? "–")")
     print("Leistungszeitraum: \(df.string(from: inv.billingPeriod.start)) – \(df.string(from: inv.billingPeriod.end))")
-    print("Ansprechpartner:   \(inv.buyerContactName ?? config.buyer.defaultContactName)")
+    print("Ansprechpartner:   \(inv.buyerContactName ?? "–")")
     for line in inv.lines {
         let tax = line.kind == .service ? "USt \(inv.vatRate.xmlQuantity) %" : "durchlaufend"
         print("  [\(line.id)] \(line.quantity.xmlQuantity) \(line.unit.rawValue) × \(line.unitPrice.germanAmount) = \(line.amount.germanAmount) EUR (\(tax))")

@@ -79,41 +79,59 @@ public struct CIIWriter {
 
         x.open("ram:ApplicableHeaderTradeAgreement")
     x.element("ram:BuyerReference", invoice.fileReference)               // BT-10
-        x.open("ram:SellerTradeParty")
-        x.element("ram:ID", c.seller.id)                                      // BT-29
-        x.element("ram:Name", c.seller.name)                                  // BT-27
-        x.open("ram:DefinedTradeContact")
-        x.element("ram:PersonName", c.seller.contactName)                     // BT-41
-        x.open("ram:TelephoneUniversalCommunication")
-        x.element("ram:CompleteNumber", c.seller.phone)                       // BT-42
-        x.close()
-        x.open("ram:EmailURIUniversalCommunication")
-        x.element("ram:URIID", c.seller.email)                                // BT-43
-        x.close()
-        x.close()
-        x.address(postcode: c.seller.postcode, line: c.seller.street, city: c.seller.city, country: c.seller.country)
-        x.open("ram:URIUniversalCommunication")
-        x.element("ram:URIID", c.seller.email, attributes: [("schemeID", "EM")]) // BT-34
-        x.close()
-        x.open("ram:SpecifiedTaxRegistration")
-        x.element("ram:ID", c.seller.vatId, attributes: [("schemeID", "VA")]) // BT-31
-        x.close()
-        x.close()
+        if let seller = invoice.seller {
+            x.open("ram:SellerTradeParty")
+            if let id = seller.id { x.element("ram:ID", id) }                 // BT-29
+            x.element("ram:Name", seller.name)                                // BT-27
+            if seller.contactName != nil || seller.phone != nil || seller.email != nil {
+                x.open("ram:DefinedTradeContact")
+                if let contactName = seller.contactName { x.element("ram:PersonName", contactName) }
+                if let phone = seller.phone {
+                    x.open("ram:TelephoneUniversalCommunication")
+                    x.element("ram:CompleteNumber", phone)                    // BT-42
+                    x.close()
+                }
+                if let email = seller.email {
+                    x.open("ram:EmailURIUniversalCommunication")
+                    x.element("ram:URIID", email)                             // BT-43
+                    x.close()
+                }
+                x.close()
+            }
+            x.address(postcode: seller.postcode, lines: [seller.street], city: seller.city, country: seller.country)
+            if let email = seller.email {
+                x.open("ram:URIUniversalCommunication")
+                x.element("ram:URIID", email, attributes: [("schemeID", "EM")]) // BT-34
+                x.close()
+            }
+            if let vatId = seller.vatId {
+                x.open("ram:SpecifiedTaxRegistration")
+                x.element("ram:ID", vatId, attributes: [("schemeID", "VA")]) // BT-31
+                x.close()
+            }
+            x.close()
+        }
 
-        x.open("ram:BuyerTradeParty")
-        x.element("ram:ID", c.buyer.id)                                       // BT-46
-        x.element("ram:Name", c.buyer.name)                                   // BT-44
-        x.open("ram:DefinedTradeContact")
-        x.element("ram:PersonName", invoice.buyerContactName ?? c.buyer.defaultContactName) // BT-56
-        x.close()
-        x.address(postcode: c.buyer.postcode, line: c.buyer.addressLine, city: c.buyer.city, country: c.buyer.country)
-        x.open("ram:URIUniversalCommunication")
-        x.element("ram:URIID", c.buyer.vatId, attributes: [("schemeID", "9930")]) // BT-49
-        x.close()
-        x.open("ram:SpecifiedTaxRegistration")
-        x.element("ram:ID", c.buyer.vatId, attributes: [("schemeID", "VA")]) // BT-48
-        x.close()
-        x.close()
+        if let buyer = invoice.buyer {
+            x.open("ram:BuyerTradeParty")
+            if !c.buyerID.isEmpty { x.element("ram:ID", c.buyerID) }          // BT-46
+            x.element("ram:Name", buyer.name)                                 // BT-44
+            if let contactName = invoice.buyerContactName {
+                x.open("ram:DefinedTradeContact")
+                x.element("ram:PersonName", contactName)                      // BT-56
+                x.close()
+            }
+            x.address(postcode: buyer.postcode, lines: buyer.addressLines, city: buyer.city, country: buyer.country)
+            if let vatId = buyer.vatId {
+                x.open("ram:URIUniversalCommunication")
+                x.element("ram:URIID", vatId, attributes: [("schemeID", "9930")]) // BT-49
+                x.close()
+                x.open("ram:SpecifiedTaxRegistration")
+                x.element("ram:ID", vatId, attributes: [("schemeID", "VA")]) // BT-48
+                x.close()
+            }
+            x.close()
+        }
         x.close()
 
         x.open("ram:ApplicableHeaderTradeDelivery")
@@ -125,18 +143,20 @@ public struct CIIWriter {
         x.open("ram:ApplicableHeaderTradeSettlement")
         x.element("ram:PaymentReference", "Rechnung \(invoice.number)")      // BT-83
         x.element("ram:InvoiceCurrencyCode", cur)                             // BT-5
-        x.open("ram:SpecifiedTradeSettlementPaymentMeans")
-        x.element("ram:TypeCode", "58")                                       // BT-81 SEPA-Überweisung
-        x.open("ram:PayeePartyCreditorFinancialAccount")
-        x.element("ram:IBANID", c.payment.iban.replacingOccurrences(of: " ", with: "")) // BT-84
-        if !c.payment.accountHolder.isEmpty {
-            x.element("ram:AccountName", c.payment.accountHolder)            // BT-85
+        if let payment = invoice.payment {
+            x.open("ram:SpecifiedTradeSettlementPaymentMeans")
+            x.element("ram:TypeCode", "58")                                   // BT-81 SEPA-Überweisung
+            x.open("ram:PayeePartyCreditorFinancialAccount")
+            x.element("ram:IBANID", payment.iban)                              // BT-84
+            if let accountHolder = payment.accountHolder {
+                x.element("ram:AccountName", accountHolder)                    // BT-85
+            }
+            x.close()
+            x.open("ram:PayeeSpecifiedCreditorFinancialInstitution")
+            x.element("ram:BICID", payment.bic)                               // BT-86
+            x.close()
+            x.close()
         }
-        x.close()
-        x.open("ram:PayeeSpecifiedCreditorFinancialInstitution")
-        x.element("ram:BICID", c.payment.bic)                                 // BT-86
-        x.close()
-        x.close()
 
         // BG-23: Aufschlüsselung der Umsatzsteuer je Kategorie
         x.open("ram:ApplicableTradeTax")
@@ -162,10 +182,12 @@ public struct CIIWriter {
         x.date("ram:EndDateTime", invoice.billingPeriod.end)
         x.close()
 
-        x.open("ram:SpecifiedTradePaymentTerms")
-        x.element("ram:Description", c.payment.terms)                         // BT-20
-        x.date("ram:DueDateDateTime", dueDate(for: invoice))                 // BT-9
-        x.close()
+        if let payment = invoice.payment {
+            x.open("ram:SpecifiedTradePaymentTerms")
+            x.element("ram:Description", payment.terms)                       // BT-20
+            x.date("ram:DueDateDateTime", dueDate(for: invoice))              // BT-9
+            x.close()
+        }
 
         x.open("ram:SpecifiedTradeSettlementHeaderMonetarySummation")
         x.element("ram:LineTotalAmount", invoice.lineTotal.xmlAmount)         // BT-106
@@ -227,10 +249,12 @@ struct XMLBuilder {
         close()
     }
 
-    mutating func address(postcode: String, line: String, city: String, country: String) {
+    mutating func address(postcode: String, lines: [String], city: String, country: String) {
         open("ram:PostalTradeAddress")
         element("ram:PostcodeCode", postcode)
-        if !line.isEmpty { element("ram:LineOne", line) }
+        for (index, line) in lines.prefix(3).enumerated() where !line.isEmpty {
+            element(index == 0 ? "ram:LineOne" : "ram:LineTwo", line)
+        }
         element("ram:CityName", city)
         element("ram:CountryID", country)
         close()

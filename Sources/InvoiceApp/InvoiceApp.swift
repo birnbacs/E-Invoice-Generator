@@ -4,10 +4,10 @@ import SwiftUI
 @main
 struct InvoiceApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model = AppModel()
+    @State private var model = AppModel.shared
 
     var body: some Scene {
-        Window("BMW E-Rechnung", id: "main") {
+        Window("E-Invoice Generator", id: "main") {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 640, minHeight: 560)
@@ -31,6 +31,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            AppModel.shared.open(url)
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

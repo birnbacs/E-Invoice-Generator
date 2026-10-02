@@ -13,6 +13,9 @@ public struct Invoice: Sendable, Equatable {
     public var billingPeriod: DateInterval
     /// "Patentreferent ..." aus dem PDF, sonst nil.
     public var buyerContactName: String?
+    public var seller: Seller?
+    public var buyer: Buyer?
+    public var payment: Payment?
     public var lines: [InvoiceLine]
     public var vatRate: Decimal
 
@@ -29,6 +32,36 @@ public struct Invoice: Sendable, Equatable {
     public var lineTotal: Decimal { taxableTotal + disbursementTotal }
     public var vatAmount: Decimal { (taxableTotal * vatRate / 100).rounded(2) }
     public var grandTotal: Decimal { lineTotal + vatAmount }
+
+    public struct Seller: Sendable, Equatable {
+        public var id: String?
+        public var name: String
+        public var contactName: String?
+        public var phone: String?
+        public var email: String?
+        public var street: String
+        public var postcode: String
+        public var city: String
+        public var country: String
+        public var vatId: String?
+    }
+
+    public struct Buyer: Sendable, Equatable {
+        public var id: String?
+        public var name: String
+        public var addressLines: [String]
+        public var postcode: String
+        public var city: String
+        public var country: String
+        public var vatId: String?
+    }
+
+    public struct Payment: Sendable, Equatable {
+        public var iban: String
+        public var bic: String
+        public var accountHolder: String?
+        public var terms: String
+    }
 
     /// Prüft, ob die im PDF angegebenen Summen mit den Positionen übereinstimmen.
     /// Wirft einen Fehler, wenn nicht – dann darf keine E-Rechnung erzeugt werden.

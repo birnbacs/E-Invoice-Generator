@@ -1,4 +1,4 @@
-# BMW E-Rechnung
+# E-Invoice Generator
 
 Erzeugt aus einer mit LibreOffice exportierten Rechnung (PDF/A-3) eine
 ZUGFeRD-2.1-E-Rechnung (Profil EN 16931). Das XML wird per inkrementellem
@@ -6,17 +6,19 @@ Update angehängt; das Original-PDF bleibt Byte für Byte erhalten.
 
 ## Benutzung
 
-- App bauen: `scripts/build-app.sh` → `build/BMW E-Rechnung.app`
+- App bauen: `scripts/build-app.sh` → `build/E-Invoice Generator.app`
 - Kommandozeile: `swift run invoice-cli Referenzen/BMW3090-re.pdf [--xml out.xml] [--dry-run]`
 - Tests: `swift test`
 - Prüfen mit Mustang (nur Entwicklung): `scripts/setup-tools.sh`, dann `scripts/validate.sh datei.pdf`
 
 ## Konfiguration
 
-Feste Angaben (Verkäufer, BMW, Bankverbindung, Stundensatz) stehen in
-`Config/config.json`. Die App kopiert diese Datei beim ersten Start nach
-`~/Library/Application Support/BMW-E-Invoice/config.json`; Stundensatz und
-Zahlungsbedingungen lassen sich in den Einstellungen (⌘,) ändern.
+Währung und Käufer-ID lassen sich in den Einstellungen (⌘,) verwalten.
+Verkäufer-, Käufer- und Zahlungsdaten werden beim Import aus dem Rechnungs-PDF
+gelesen. `Config/config.json` liefert die initialen Standardwerte für Währung
+Käufer-ID (`A1`) und Stundensatz sowie den BT-22-Präfix und die Begründung für
+durchlaufende Posten; geänderte Preferences für Währung und Käufer-ID speichert
+die App separat.
 
 ## Abbildung PDF → XML
 

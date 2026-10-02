@@ -6,6 +6,8 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
+    static let shared = AppModel()
+
     var config: InvoiceConfig?
     var configError: String?
 
@@ -14,14 +16,15 @@ final class AppModel {
     var errorMessage: String?
     var savedURL: URL?
 
-    /// Ablage der Konfiguration: ~/Library/Application Support/BMW-E-Invoice/config.json
+    /// Ablage der Konfiguration: ~/Library/Application Support/E-Invoice Generator/config.json
     static var configURL: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("BMW-E-Invoice", isDirectory: true)
+            .appendingPathComponent("E-Invoice Generator", isDirectory: true)
         return dir.appendingPathComponent("config.json")
     }
 
     init() {
+        UserDefaults.standard.removeObject(forKey: "preferences.hourlyRate")
         loadConfig()
     }
 
@@ -36,7 +39,14 @@ final class AppModel {
                 try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try FileManager.default.copyItem(at: bundled, to: url)
             }
-            config = try InvoiceConfig.load(from: url)
+            var loadedConfig = try InvoiceConfig.load(from: url)
+            if let currency = UserDefaults.standard.string(forKey: "preferences.currency") {
+                loadedConfig.currency = currency
+            }
+            if let buyerID = UserDefaults.standard.string(forKey: "preferences.buyerID") {
+                loadedConfig.buyerID = buyerID
+            }
+            config = loadedConfig
             configError = nil
         } catch {
             config = nil
@@ -45,14 +55,15 @@ final class AppModel {
         if let inputURL { open(inputURL) }
     }
 
-    func saveConfig() {
-        guard let config else { return }
-        do {
-            try config.save(to: Self.configURL)
-            if let inputURL { open(inputURL) }
-        } catch {
-            configError = "Konfiguration konnte nicht gespeichert werden: \(error.localizedDescription)"
-        }
+    func savePreferences(currency: String, buyerID: String) {
+        guard var updatedConfig = config else { return }
+        updatedConfig.currency = currency
+        updatedConfig.buyerID = buyerID
+        config = updatedConfig
+        UserDefaults.standard.set(currency, forKey: "preferences.currency")
+        UserDefaults.standard.set(buyerID, forKey: "preferences.buyerID")
+        configError = nil
+        if let inputURL { open(inputURL) }
     }
 
     func open(_ url: URL) {

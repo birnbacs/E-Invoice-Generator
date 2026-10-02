@@ -17,7 +17,10 @@ public struct InvoiceParser {
 
     public func parse(pdfAt url: URL) throws -> ParseResult {
         guard let document = PDFDocument(url: url) else { throw InvoiceError.unreadablePDF }
-        return try parse(lines: Self.textLines(of: document))
+        let lines = Self.textLines(of: document)
+        var result = try parse(lines: lines)
+        try readParties(from: document, lines: lines, invoice: &result.invoice)
+        return result
     }
 
     // MARK: - Text nach Position
@@ -27,17 +30,8 @@ public struct InvoiceParser {
     /// (z. B. stehen Beträge am Zeilenende sonst ganz unten). Deshalb werden
     /// die Stücke nach ihrer y-Position zu Zeilen gruppiert und nach x sortiert.
     public static func textLines(of document: PDFDocument) -> [String] {
-        guard let page = document.page(at: 0),
-              let selection = page.selection(for: page.bounds(for: .mediaBox))
-        else { return [] }
-
-        struct Fragment { var text: String; var x: CGFloat; var y: CGFloat }
-        let fragments: [Fragment] = selection.selectionsByLine().compactMap { line in
-            guard let text = line.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
-            let bounds = line.bounds(for: page)
-            return Fragment(text: text, x: bounds.minX, y: bounds.minY)
-        }
-
+        guard let page = document.page(at: 0) else { return [] }
+        let fragments = positionedLines(on: page)
         var rows: [[Fragment]] = []
         for fragment in fragments.sorted(by: { $0.y > $1.y }) {
             if let last = rows.last?.first, abs(last.y - fragment.y) < 2 {
@@ -51,6 +45,17 @@ public struct InvoiceParser {
                 .map(\.text)
                 .joined(separator: " ")
                 .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        }
+    }
+
+    private struct Fragment { var text: String; var x: CGFloat; var y: CGFloat }
+
+    private static func positionedLines(on page: PDFPage) -> [Fragment] {
+        guard let selection = page.selection(for: page.bounds(for: .mediaBox)) else { return [] }
+        return selection.selectionsByLine().compactMap { line in
+            guard let text = line.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+            let bounds = line.bounds(for: page)
+            return Fragment(text: text, x: bounds.minX, y: bounds.minY)
         }
     }
 
@@ -144,6 +149,103 @@ public struct InvoiceParser {
         )
         try invoice.validate()
         return ParseResult(invoice: invoice, warnings: warnings)
+    }
+
+    private func readParties(from document: PDFDocument, lines: [String], invoice: inout Invoice) throws {
+        guard let page = document.page(at: 0) else { throw InvoiceError.unreadablePDF }
+        let fragments = Self.positionedLines(on: page)
+        let normalized = lines.joined(separator: " ")
+
+        guard let supplierAddress = fragments.first(where: { $0.text.contains(" ∙ ") })?.text else {
+            throw InvoiceError.missingField("Verkäuferdaten")
+        }
+        let addressParts = supplierAddress.split(separator: "∙", maxSplits: 2).map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard addressParts.count == 3,
+              let supplierLocation = addressParts[2].firstMatch(of: /^(\d{5})\s+(.+)$/)
+        else {
+            throw InvoiceError.missingField("Verkäuferadresse")
+        }
+        let supplierID = try? value(after: #"Lieferantennummer:\s*"#, in: lines, field: "Lieferantennummer")
+
+        let vatID = Self.capture(#"USt-ID:\s*([A-Z]{2}[A-Z0-9]+)"#, in: normalized)
+        let bic = Self.capture(#"BIC:\s*([A-Z0-9]+)"#, in: normalized)
+        guard let iban = Self.capture(#"IBAN:\s*([A-Z]{2}[0-9A-Z ]+)"#, in: normalized), let bic else {
+            throw InvoiceError.missingField("Bankverbindung")
+        }
+
+        let sellerContact = fragments
+            .filter { $0.x > 300 && $0.text.contains("Univ.") }
+            .compactMap { fragment -> String? in
+                let firstColumn = fragment.text.components(separatedBy: ",").first ?? fragment.text
+                let namePart = firstColumn.components(separatedBy: "Univ.").last ?? firstColumn
+                let words = namePart.split(whereSeparator: \.isWhitespace)
+                guard words.count >= 2 else { return nil }
+                return words.suffix(2).joined(separator: " ")
+            }
+            .first
+        let phoneText = fragments.first(where: { $0.x > 300 && $0.text.hasPrefix("Tel:") })?.text
+        let phone = phoneText.flatMap { Self.capture(#"Tel:\s*([^;]+)"#, in: $0) }
+        let email = fragments.first(where: { $0.x > 300 && $0.text.contains("@") })?.text
+        invoice.seller = Invoice.Seller(
+            id: supplierID,
+            name: addressParts[0],
+            contactName: sellerContact,
+            phone: phone,
+            email: email,
+            street: addressParts[1],
+            postcode: String(supplierLocation.1),
+            city: String(supplierLocation.2),
+            country: "DE",
+            vatId: vatID
+        )
+
+        let leftColumn = fragments.filter { $0.x < 300 }.sorted { $0.y > $1.y }
+        guard let addressY = fragments.first(where: { $0.text == supplierAddress })?.y,
+              let electronicIndex = leftColumn.firstIndex(where: { $0.text.localizedCaseInsensitiveContains("nur in elektronischer Form") })
+        else {
+            throw InvoiceError.missingField("Käuferadresse")
+        }
+        let recipient = leftColumn[..<electronicIndex].filter { $0.y < addressY }.map(\.text)
+        guard let postcodeIndex = recipient.firstIndex(where: { $0.firstMatch(of: /^\d{5}\s+.+$/) != nil }),
+              let buyerName = recipient.first,
+              let buyerAddress = recipient[postcodeIndex].firstMatch(of: /^(\d{5})\s+(.+)$/)
+        else {
+            throw InvoiceError.missingField("Käuferdaten")
+        }
+        var buyerAddressLines = Array(recipient.dropFirst().prefix(postcodeIndex - 1))
+        if let contact = invoice.buyerContactName {
+            buyerAddressLines.removeAll { $0 == contact }
+        }
+        invoice.buyer = Invoice.Buyer(
+            id: nil,
+            name: buyerName,
+            addressLines: buyerAddressLines,
+            postcode: String(buyerAddress.1),
+            city: String(buyerAddress.2),
+            country: "DE",
+            vatId: nil
+        )
+
+        guard lines.contains(where: { $0.hasPrefix("Es wird um Überweisung") }) else {
+            throw InvoiceError.missingField("Zahlungsbedingungen")
+        }
+        let paymentDays = invoice.paymentTermDays
+        invoice.payment = Invoice.Payment(
+            iban: iban.filter { !$0.isWhitespace },
+            bic: bic,
+            accountHolder: nil,
+            terms: "Zahlbar innerhalb von \(paymentDays) Tagen nach Erhalt der Rechnung ohne Abzug."
+        )
+    }
+
+    private static func capture(_ pattern: String, in text: String) -> String? {
+          guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text)
+        else { return nil }
+        return String(text[range]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Hilfsfunktionen

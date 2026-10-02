@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "BMW-E-Invoice",
+    name: "E-Invoice Generator",
     defaultLocalization: "de",
     platforms: [.macOS(.v14)],
     products: [

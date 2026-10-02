@@ -21,6 +21,9 @@ public struct EInvoiceGenerator {
 
     /// Variante für die App: Die (ggf. geprüften) Daten werden übergeben.
     public func generate(from input: URL, parsed: ParseResult, modificationDate: Date = Date()) throws -> Result {
+        guard parsed.invoice.seller != nil else { throw InvoiceError.missingField("Verkäuferdaten") }
+        guard parsed.invoice.buyer != nil else { throw InvoiceError.missingField("Käuferdaten") }
+        guard parsed.invoice.payment != nil else { throw InvoiceError.missingField("Bankverbindung") }
         try parsed.invoice.validate()
         let xml = CIIWriter(config: config).xml(for: parsed.invoice)
         let original = try Data(contentsOf: input)

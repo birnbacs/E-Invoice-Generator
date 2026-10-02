@@ -84,16 +84,43 @@ struct InvoiceDetailView: View {
                     LabeledContent("Leistungszeitraum",
                                    value: "\(inv.billingPeriod.start.formatted(Self.dateFormat)) – \(inv.billingPeriod.end.formatted(Self.dateFormat))")
                     LabeledContent("Unser Zeichen", value: inv.ourReference ?? "–")
-                    LabeledContent("Ansprechpartner BMW", value: inv.buyerContactName ?? config.buyer.defaultContactName)
+                    LabeledContent("Ansprechpartner", value: inv.buyerContactName ?? "–")
+                }
+                if let buyer = inv.buyer {
+                    Section("Käufer") {
+                        LabeledContent("Name", value: buyer.name)
+                        LabeledContent("Anschrift", value: address(buyer.addressLines + ["\(buyer.postcode) \(buyer.city)"]))
+                        LabeledContent("Käufer-ID (BT-46)", value: config.buyerID.isEmpty ? "–" : config.buyerID)
+                        if let vatId = buyer.vatId {
+                            LabeledContent("USt-ID", value: vatId)
+                        }
+                    }
+                }
+                if let seller = inv.seller {
+                    Section("Verkäufer") {
+                        LabeledContent("Name", value: seller.name)
+                        LabeledContent("Anschrift", value: address([seller.street, "\(seller.postcode) \(seller.city)"]))
+                        LabeledContent("Lieferantennummer (BT-29)", value: seller.id ?? "–")
+                        if let contactName = seller.contactName {
+                            LabeledContent("Ansprechpartner", value: contactName)
+                        }
+                        if let phone = seller.phone {
+                            LabeledContent("Telefon", value: phone)
+                        }
+                        if let email = seller.email {
+                            LabeledContent("E-Mail", value: email)
+                        }
+                        if let vatId = seller.vatId {
+                            LabeledContent("USt-ID", value: vatId)
+                        }
+                    }
                 }
                 Section("Kundenvorgaben") {
-                    TextField("Aktenzeichen (Ihr Zeichen)", text: Binding(
+                    TextField("Aktenzeichen des Kunden", text: Binding(
                         get: { model.parsed?.invoice.fileReference ?? "" },
                         set: { model.parsed?.invoice.fileReference = $0; model.savedURL = nil }
                     ))
-                    LabeledContent("BT-22 Bemerkung", value: config.referenceNotePrefix + inv.fileReference)
-                    LabeledContent("Käufer-ID (BT-46)", value: config.buyer.id)
-                    LabeledContent("Lieferantennummer (BT-29)", value: config.seller.id)
+                    LabeledContent("Bemerkung (BT-22)", value: config.referenceNotePrefix + inv.fileReference)
                 }
                 Section("Positionen") {
                     ForEach(inv.lines) { line in
@@ -138,6 +165,10 @@ struct InvoiceDetailView: View {
 
     private func euro(_ value: Decimal) -> String {
         value.germanAmount + " €"
+    }
+
+    private func address(_ lines: [String]) -> String {
+        lines.filter { !$0.isEmpty }.joined(separator: "\n")
     }
 }
 
