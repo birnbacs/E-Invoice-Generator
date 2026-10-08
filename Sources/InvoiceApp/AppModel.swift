@@ -43,8 +43,17 @@ final class AppModel {
             if let currency = UserDefaults.standard.string(forKey: "preferences.currency") {
                 loadedConfig.currency = currency
             }
+            if let supplierID = UserDefaults.standard.string(forKey: "preferences.supplierID") {
+                loadedConfig.supplierID = supplierID
+            }
             if let buyerID = UserDefaults.standard.string(forKey: "preferences.buyerID") {
                 loadedConfig.buyerID = buyerID
+            }
+            if let buyerEmail = UserDefaults.standard.string(forKey: "preferences.buyerEmail") {
+                loadedConfig.buyerEmail = buyerEmail
+            }
+            if let buyerSMTP = UserDefaults.standard.string(forKey: "preferences.buyerSMTP") {
+                loadedConfig.buyerSMTP = buyerSMTP
             }
             config = loadedConfig
             configError = nil
@@ -55,13 +64,19 @@ final class AppModel {
         if let inputURL { open(inputURL) }
     }
 
-    func savePreferences(currency: String, buyerID: String) {
+    func savePreferences(currency: String, buyerID: String, supplierID: String, buyerEmail: String, buyerSMTP: String) {
         guard var updatedConfig = config else { return }
         updatedConfig.currency = currency
         updatedConfig.buyerID = buyerID
+        updatedConfig.supplierID = supplierID
+        updatedConfig.buyerEmail = buyerEmail
+        updatedConfig.buyerSMTP = buyerSMTP
         config = updatedConfig
         UserDefaults.standard.set(currency, forKey: "preferences.currency")
         UserDefaults.standard.set(buyerID, forKey: "preferences.buyerID")
+        UserDefaults.standard.set(supplierID, forKey: "preferences.supplierID")
+        UserDefaults.standard.set(buyerEmail, forKey: "preferences.buyerEmail")
+        UserDefaults.standard.set(buyerSMTP, forKey: "preferences.buyerSMTP")
         configError = nil
         if let inputURL { open(inputURL) }
     }

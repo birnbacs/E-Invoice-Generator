@@ -21,6 +21,13 @@ public struct EInvoiceGenerator {
 
     /// Variante für die App: Die (ggf. geprüften) Daten werden übergeben.
     public func generate(from input: URL, parsed: ParseResult, modificationDate: Date = Date()) throws -> Result {
+        let fileName = input.deletingPathExtension().lastPathComponent
+        guard fileName.contains(parsed.invoice.number) else {
+            throw InvoiceError.sourceFileNameDoesNotContainInvoiceNumber(
+                fileName: fileName,
+                invoiceNumber: parsed.invoice.number
+            )
+        }
         guard parsed.invoice.seller != nil else { throw InvoiceError.missingField("Verkäuferdaten") }
         guard parsed.invoice.buyer != nil else { throw InvoiceError.missingField("Käuferdaten") }
         guard parsed.invoice.payment != nil else { throw InvoiceError.missingField("Bankverbindung") }

@@ -6,8 +6,12 @@ struct InvoiceApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel.shared
 
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.3"
+    }
+
     var body: some Scene {
-        Window("E-Invoice Generator", id: "main") {
+        Window("E-Invoice Generator \(appVersion)", id: "main") {
             ContentView()
                 .environment(model)
                 .frame(minWidth: 640, minHeight: 560)

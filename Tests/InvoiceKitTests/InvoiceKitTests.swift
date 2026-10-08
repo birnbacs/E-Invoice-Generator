@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import PDFKit
 import Testing
 @testable import InvoiceKit
@@ -86,6 +87,7 @@ struct ParserTests {
     }
 
     @Test(arguments: [
+        ("Okt. 2026", "20261001", "20261031"),
         ("Sep. 2026", "20260901", "20260930"),
         ("Sep 2020", "20200901", "20200930"),
         ("Februar 2028", "20280201", "20280229"),
@@ -96,6 +98,39 @@ struct ParserTests {
         let period = try #require(InvoiceParser.parsePeriod(text))
         #expect(ymd(period.start) == start)
         #expect(ymd(period.end) == end)
+    }
+
+    @Test func pdfGlyphSpacing() {
+        #expect(InvoiceParser.normalizeGlyphSpacing("L e i s t u n g s z e i t r") == "Leistungszeitr")
+        #expect(InvoiceParser.normalizeGlyphSpacing("a u") == "au")
+        #expect(InvoiceParser.normalizeGlyphSpacing("O k t .") == "Okt .")
+        #expect(InvoiceParser.normalizeGlyphSpacing("2 0 2 6") == "2026")
+    }
+
+    @Test func pdfa3Metadatenpruefung() throws {
+        try ZUGFeRDEmbedder.validatePDFa3XMP("<pdfaid:part>3</pdfaid:part>")
+        try ZUGFeRDEmbedder.validatePDFa3XMP("<x pdfaid:part=\"3\"/>")
+        #expect(throws: ZUGFeRDEmbedder.Error.notPDFA3) {
+            try ZUGFeRDEmbedder.validatePDFa3XMP("<pdfaid:part>2</pdfaid:part>")
+        }
+    }
+
+    @Test func nichtPDFA3WirdBeimLadenAbgelehnt() throws {
+        let buffer = NSMutableData()
+        var mediaBox = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let consumer = try #require(CGDataConsumer(data: buffer as CFMutableData))
+        let context = try #require(CGContext(consumer: consumer, mediaBox: &mediaBox, nil))
+        context.beginPDFPage(nil)
+        context.endPDFPage()
+        context.closePDF()
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("non-pdfa-\(UUID().uuidString).pdf")
+        try (buffer as Data).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        #expect(throws: ZUGFeRDEmbedder.Error.notPDFA3) {
+            try InvoiceParser(config: config()).parse(pdfAt: url)
+        }
     }
 
     @Test func datumsformate() {
@@ -127,12 +162,14 @@ struct GeneratorTests {
         #expect(try value("/*:CrossIndustryInvoice/*:ExchangedDocumentContext/*:GuidelineSpecifiedDocumentContextParameter/*:ID") == CIIWriter.guideline)
         #expect(try value("\(agreement)/*:BuyerReference") == "26-1884")
         #expect(cfg.buyerID == "A1")
+        #expect(cfg.supplierID == "12559310")
+        #expect(cfg.buyerEmail == "patentabteilung@bmw.de")
         #expect(try value("\(agreement)/*:BuyerTradeParty/*:ID") == "A1")
         #expect(try value("\(agreement)/*:BuyerTradeParty/*:Name") == "BMW AG")
         #expect(try value("\(agreement)/*:BuyerTradeParty/*:PostalTradeAddress/*:LineOne") == "Patentabteilung AJ-53")
-        #expect(try value("\(agreement)/*:BuyerTradeParty/*:URIUniversalCommunication/*:URIID") == nil)
+        #expect(try value("\(agreement)/*:BuyerTradeParty/*:URIUniversalCommunication/*:URIID") == "bmw.en16931@quibiqedocservice.de")
         #expect(try value("\(agreement)/*:BuyerTradeParty/*:SpecifiedTaxRegistration/*:ID") == nil)
-        #expect(try value("\(agreement)/*:SellerTradeParty/*:ID") == "125593-10")
+        #expect(try value("\(agreement)/*:SellerTradeParty/*:ID") == "12559310")
         #expect(try value("\(agreement)/*:SellerTradeParty/*:Name") == "Zweibrücken IP")
         #expect(try value("\(agreement)/*:SellerTradeParty/*:URIUniversalCommunication/*:URIID") == "mail@zweibruecken-ip.de")
         let settlement = "/*:CrossIndustryInvoice/*:SupplyChainTradeTransaction/*:ApplicableHeaderTradeSettlement"
@@ -142,9 +179,26 @@ struct GeneratorTests {
         #expect(try value("/*:CrossIndustryInvoice/*:SupplyChainTradeTransaction/*:ApplicableHeaderTradeSettlement/*:SpecifiedTradePaymentTerms/*:DueDateDateTime/*:DateTimeString") == "20261018")
     }
 
+    @Test func lieferantennummerAusVoreinstellungenWirdVerwendet() throws {
+        var cfg = try config()
+        cfg.supplierID = "12559310"
+        let inv = try InvoiceParser(config: cfg).parse(pdfAt: reference("BMW3090")).invoice
+        let xml = CIIWriter(config: cfg).xml(for: inv)
+        let doc = try XMLDocument(xmlString: xml)
+        let value = try doc.nodes(forXPath: "/*:CrossIndustryInvoice/*:SupplyChainTradeTransaction/*:ApplicableHeaderTradeAgreement/*:SellerTradeParty/*:ID").first?.stringValue
+        #expect(value == "12559310")
+    }
+
     @Test func einbettenBehaeltOriginal() throws {
-        let original = try Data(contentsOf: reference("RAK1742"))
-        let result = try EInvoiceGenerator(config: config()).generate(from: reference("RAK1742"))
+        let source = reference("RAK1742")
+        let parsed = try InvoiceParser(config: config()).parse(pdfAt: source)
+        let input = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(parsed.invoice.number)-RAK1742-\(UUID().uuidString).pdf")
+        try Data(contentsOf: source).write(to: input)
+        defer { try? FileManager.default.removeItem(at: input) }
+
+        let original = try Data(contentsOf: input)
+        let result = try EInvoiceGenerator(config: config()).generate(from: input, parsed: parsed)
         #expect(result.pdf.prefix(original.count) == original)
 
         let doc = try #require(PDFDocument(data: result.pdf))
@@ -156,9 +210,29 @@ struct GeneratorTests {
         #expect(tail.contains("<fx:ConformanceLevel>EN 16931</fx:ConformanceLevel>"))
     }
 
+    @Test func dateinameOhneRechnungsnummerWirdAbgelehnt() throws {
+        let source = reference("BMW3090")
+        let parsed = try InvoiceParser(config: config()).parse(pdfAt: source)
+        let error = InvoiceError.sourceFileNameDoesNotContainInvoiceNumber(
+            fileName: "BMW3090-re",
+            invoiceNumber: parsed.invoice.number
+        )
+
+        #expect(throws: error) {
+            try EInvoiceGenerator(config: config()).generate(from: source, parsed: parsed)
+        }
+    }
+
     @Test func zweimalEinbettenWirdAbgelehnt() throws {
         let cfg = try config()
-        let first = try EInvoiceGenerator(config: cfg).generate(from: reference("BMW3090")).pdf
+        let source = reference("BMW3090")
+        let parsed = try InvoiceParser(config: cfg).parse(pdfAt: source)
+        let input = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(parsed.invoice.number)-BMW3090-\(UUID().uuidString).pdf")
+        try Data(contentsOf: source).write(to: input)
+        defer { try? FileManager.default.removeItem(at: input) }
+
+        let first = try EInvoiceGenerator(config: cfg).generate(from: input, parsed: parsed).pdf
         #expect(throws: ZUGFeRDEmbedder.Error.alreadyEInvoice) {
             try ZUGFeRDEmbedder().embed(xml: Data("<x/>".utf8), into: first)
         }

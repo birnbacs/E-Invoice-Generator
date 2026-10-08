@@ -100,7 +100,7 @@ struct InvoiceDetailView: View {
                     Section("Verkäufer") {
                         LabeledContent("Name", value: seller.name)
                         LabeledContent("Anschrift", value: address([seller.street, "\(seller.postcode) \(seller.city)"]))
-                        LabeledContent("Lieferantennummer (BT-29)", value: seller.id ?? "–")
+                        LabeledContent("Lieferantennummer (BT-29)", value: config.supplierID.isEmpty ? (seller.id ?? "–") : config.supplierID)
                         if let contactName = seller.contactName {
                             LabeledContent("Ansprechpartner", value: contactName)
                         }

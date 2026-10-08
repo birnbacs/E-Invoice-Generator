@@ -1,6 +1,9 @@
 {
   "currency": "EUR",
+  "supplierID": "12559310",
   "buyerID": "A1",
+  "buyerEmail": "patentabteilung@bmw.de",
+  "buyerSMTP": "bmw.en16931@quibiqedocservice.de",
   "hourlyRate": "270.00",
   "referenceNotePrefix": "REF. ",
   "disbursementExemptionReason": "Durchlaufender Posten gemäß § 10 Abs. 1 Satz 6 UStG"

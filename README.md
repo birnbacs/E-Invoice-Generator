@@ -7,7 +7,7 @@ Update angehängt; das Original-PDF bleibt Byte für Byte erhalten.
 ## Benutzung
 
 - App bauen: `scripts/build-app.sh` → `build/E-Invoice Generator.app`
-- Kommandozeile: `swift run invoice-cli Referenzen/BMW3090-re.pdf [--xml out.xml] [--dry-run]`
+- Kommandozeile: `swift run invoice-cli "Referenzen/invoice 20260281_el.pdf" [--xml out.xml] [--dry-run]`
 - Tests: `swift test`
 - Prüfen mit Mustang (nur Entwicklung): `scripts/setup-tools.sh`, dann `scripts/validate.sh datei.pdf`
 
@@ -35,5 +35,6 @@ die App separat.
 | fest: `A1`                            | BT-46 BuyerTradeParty/ID                    |
 | fest: `125593-10`                     | BT-29 SellerTradeParty/ID                   |
 
-Stimmen Zwischensumme, Umsatzsteuer oder Endbetrag nicht mit den Positionen
-überein, wird keine E-Rechnung erzeugt.
+Die Rechnungsnummer muss im Dateinamen der Quelldatei enthalten sein. Stimmen
+Zwischensumme, Umsatzsteuer oder Endbetrag nicht mit den Positionen überein,
+wird ebenfalls keine E-Rechnung erzeugt.

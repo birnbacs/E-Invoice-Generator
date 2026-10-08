@@ -16,7 +16,10 @@ public struct InvoiceParser {
     }
 
     public func parse(pdfAt url: URL) throws -> ParseResult {
-        guard let document = PDFDocument(url: url) else { throw InvoiceError.unreadablePDF }
+        guard let pdf = try? Data(contentsOf: url), let document = PDFDocument(data: pdf) else {
+            throw InvoiceError.unreadablePDF
+        }
+        try ZUGFeRDEmbedder.validatePDFa3(pdf)
         let lines = Self.textLines(of: document)
         var result = try parse(lines: lines)
         try readParties(from: document, lines: lines, invoice: &result.invoice)
@@ -41,22 +44,49 @@ public struct InvoiceParser {
             }
         }
         return rows.map { row in
-            row.sorted { $0.x < $1.x }
-                .map(\.text)
-                .joined(separator: " ")
-                .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            let ordered = row.sorted { $0.x < $1.x }
+            guard ordered.contains(where: { Self.hasSpacedGlyphs($0.text) }) else {
+                return ordered.map(\.text)
+                    .joined(separator: " ")
+                    .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            }
+
+            let joined = ordered.enumerated().map { index, fragment in
+                let separator: String
+                if index == 0 || fragment.x - ordered[index - 1].maxX <= 2 {
+                    separator = ""
+                } else {
+                    separator = " "
+                }
+                return separator + Self.normalizeGlyphSpacing(fragment.text)
+            }.joined()
+            return joined
+                .replacingOccurrences(of: #"\s+([:.,;])"#, with: "$1", options: .regularExpression)
+                .replacingOccurrences(of: #"(?<=[A-Za-zÄÖÜäöü]\.)(?=\d{4})"#, with: " ", options: .regularExpression)
         }
     }
 
-    private struct Fragment { var text: String; var x: CGFloat; var y: CGFloat }
+    private struct Fragment { var text: String; var x: CGFloat; var y: CGFloat; var maxX: CGFloat }
 
     private static func positionedLines(on page: PDFPage) -> [Fragment] {
         guard let selection = page.selection(for: page.bounds(for: .mediaBox)) else { return [] }
         return selection.selectionsByLine().compactMap { line in
             guard let text = line.string?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
             let bounds = line.bounds(for: page)
-            return Fragment(text: text, x: bounds.minX, y: bounds.minY)
+            return Fragment(text: text, x: bounds.minX, y: bounds.minY, maxX: bounds.maxX)
         }
+    }
+
+    private static func hasSpacedGlyphs(_ text: String) -> Bool {
+        text.range(of: #"(?:[\p{L}\d]\s+){3,}[\p{L}\d]"#, options: .regularExpression) != nil
+    }
+
+    static func normalizeGlyphSpacing(_ text: String) -> String {
+        return text.replacingOccurrences(
+            of: #"(?<=[\p{L}\d])\s+(?=[\p{L}\d])"#,
+            with: "",
+            options: .regularExpression
+        )
     }
 
     // MARK: - Auswertung
@@ -156,10 +186,12 @@ public struct InvoiceParser {
         let fragments = Self.positionedLines(on: page)
         let normalized = lines.joined(separator: " ")
 
-        guard let supplierAddress = fragments.first(where: { $0.text.contains(" ∙ ") })?.text else {
+        guard let supplierAddress = fragments.first(where: {
+            $0.text.contains("Frauenstr.") && $0.text.contains("80469")
+        })?.text else {
             throw InvoiceError.missingField("Verkäuferdaten")
         }
-        let addressParts = supplierAddress.split(separator: "∙", maxSplits: 2).map {
+        let addressParts = supplierAddress.split(whereSeparator: { $0 == "∙" || $0 == "·" }).map {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         guard addressParts.count == 3,
@@ -221,6 +253,7 @@ public struct InvoiceParser {
         invoice.buyer = Invoice.Buyer(
             id: nil,
             name: buyerName,
+            email: nil,
             addressLines: buyerAddressLines,
             postcode: String(buyerAddress.1),
             city: String(buyerAddress.2),

@@ -3,10 +3,13 @@
 set -e
 cd "$(dirname "$0")/.."
 swift build -c release --product InvoiceApp --arch arm64
+swift build -c release --product InvoiceApp --arch x86_64
 APP="build/E-Invoice Generator.app"
+ARM_BINARY=".build/arm64-apple-macosx/release/InvoiceApp"
+INTEL_BINARY=".build/x86_64-apple-macosx/release/InvoiceApp"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp .build/release/InvoiceApp "$APP/Contents/MacOS/E-Invoice Generator"
+lipo -create "$ARM_BINARY" "$INTEL_BINARY" -output "$APP/Contents/MacOS/E-Invoice Generator"
 cp Config/config.json "$APP/Contents/Resources/config.json"
 
 ICONSET_DIR="$APP/Contents/Resources/AppIcon.iconset"
@@ -114,10 +117,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIconName</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.2</string>
-  <key>CFBundleVersion</key><string>0.2</string>
+  <key>CFBundleShortVersionString</key><string>0.3</string>
+  <key>CFBundleVersion</key><string>0.3</string>
   <key>CFBundleDevelopmentRegion</key><string>de</string>
-  <key>CFBundleGetInfoString</key><string>E-Invoice Generator 0.2 • Patentanwaltskanzlei Zweibrücken IP • https://zweibruecken-ip.de</string>
+  <key>CFBundleGetInfoString</key><string>E-Invoice Generator 0.3 • Patentanwaltskanzlei Zweibrücken IP • https://zweibruecken-ip.de</string>
   <key>NSHumanReadableCopyright</key><string>Copyright © 2026 Patentanwaltskanzlei Zweibrücken IP • https://zweibruecken-ip.de</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>

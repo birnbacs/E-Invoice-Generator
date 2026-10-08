@@ -49,6 +49,7 @@ public struct Invoice: Sendable, Equatable {
     public struct Buyer: Sendable, Equatable {
         public var id: String?
         public var name: String
+        public var email: String?
         public var addressLines: [String]
         public var postcode: String
         public var city: String
@@ -112,6 +113,7 @@ public enum InvoiceError: LocalizedError, Equatable {
     case unreadablePDF
     case missingField(String)
     case unparsable(field: String, value: String)
+    case sourceFileNameDoesNotContainInvoiceNumber(fileName: String, invoiceNumber: String)
     case inconsistent([String])
 
     public var errorDescription: String? {
@@ -122,6 +124,8 @@ public enum InvoiceError: LocalizedError, Equatable {
             return "Im PDF wurde „\(field)“ nicht gefunden."
         case .unparsable(let field, let value):
             return "„\(field)“ konnte nicht gelesen werden: \(value)"
+        case .sourceFileNameDoesNotContainInvoiceNumber(let fileName, let invoiceNumber):
+            return "Der Dateiname „\(fileName)“ enthält nicht die Rechnungsnummer „\(invoiceNumber)“."
         case .inconsistent(let problems):
             return "Die Beträge im PDF sind nicht stimmig:\n" + problems.map { "• " + $0 }.joined(separator: "\n")
         }

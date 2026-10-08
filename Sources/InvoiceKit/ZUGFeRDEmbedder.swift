@@ -15,12 +15,14 @@ public struct ZUGFeRDEmbedder {
         case structure(String)
         case unsupported(String)
         case alreadyEInvoice
+        case notPDFA3
 
         public var errorDescription: String? {
             switch self {
             case .structure(let detail): return "Das PDF hat einen unerwarteten Aufbau: \(detail)"
             case .unsupported(let detail): return "Dieses PDF wird nicht unterstützt: \(detail)"
             case .alreadyEInvoice: return "Das PDF enthält bereits eine E-Rechnung bzw. eingebettete Dateien."
+            case .notPDFA3: return "Die Ausgangsrechnung ist kein PDF/A-3. Bitte exportieren Sie die Rechnung als PDF/A-3."
             }
         }
     }
@@ -30,6 +32,27 @@ public struct ZUGFeRDEmbedder {
     public static let conformanceLevel = "EN 16931"
 
     public init() {}
+
+    static func validatePDFa3(_ pdf: Data) throws {
+        var reader = PDFReader(data: pdf)
+        let trailer = try reader.trailer()
+        guard let root = trailer.reference("Root") else { throw Error.structure("kein /Root im Trailer") }
+        let catalog = try reader.dictionaryText(ofObject: root)
+        guard let metadataRef = PDFReader.reference(named: "Metadata", in: catalog) else {
+            throw Error.notPDFA3
+        }
+        let xmp = try reader.streamContent(ofObject: metadataRef)
+        guard let xmpText = String(data: xmp, encoding: .utf8) else {
+            throw Error.unsupported("XMP-Metadaten sind nicht UTF-8")
+        }
+        try validatePDFa3XMP(xmpText)
+    }
+
+    static func validatePDFa3XMP(_ xmp: String) throws {
+        let hasPartElement = xmp.range(of: #"pdfaid:part\s*>\s*3\s*<"#, options: .regularExpression) != nil
+        let hasPartAttribute = xmp.range(of: #"pdfaid:part\s*=\s*[\"']3[\"']"#, options: .regularExpression) != nil
+        guard hasPartElement || hasPartAttribute else { throw Error.notPDFA3 }
+    }
 
     public func embed(xml: Data, into pdf: Data, modificationDate: Date = Date()) throws -> Data {
         var reader = PDFReader(data: pdf)
@@ -42,15 +65,13 @@ public struct ZUGFeRDEmbedder {
             throw Error.alreadyEInvoice
         }
         guard let metadataRef = PDFReader.reference(named: "Metadata", in: catalog) else {
-            throw Error.unsupported("keine XMP-Metadaten (kein PDF/A?)")
+            throw Error.notPDFA3
         }
         let xmp = try reader.streamContent(ofObject: metadataRef)
         guard let xmpText = String(data: xmp, encoding: .utf8) else {
             throw Error.unsupported("XMP-Metadaten sind nicht UTF-8")
         }
-        if xmpText.contains("pdfaid:part>3") == false && xmpText.contains("pdfaid:part=\"3\"") == false {
-            throw Error.unsupported("das PDF ist kein PDF/A-3")
-        }
+        try Self.validatePDFa3XMP(xmpText)
         if xmpText.contains("factur-x") || xmpText.contains("zugferd") {
             throw Error.alreadyEInvoice
         }

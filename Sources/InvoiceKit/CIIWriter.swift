@@ -81,7 +81,8 @@ public struct CIIWriter {
     x.element("ram:BuyerReference", invoice.fileReference)               // BT-10
         if let seller = invoice.seller {
             x.open("ram:SellerTradeParty")
-            if let id = seller.id { x.element("ram:ID", id) }                 // BT-29
+            let sellerID = c.supplierID.isEmpty ? seller.id : c.supplierID
+            if let id = sellerID { x.element("ram:ID", id) }                 // BT-29
             x.element("ram:Name", seller.name)                                // BT-27
             if seller.contactName != nil || seller.phone != nil || seller.email != nil {
                 x.open("ram:DefinedTradeContact")
@@ -122,6 +123,12 @@ public struct CIIWriter {
                 x.close()
             }
             x.address(postcode: buyer.postcode, lines: buyer.addressLines, city: buyer.city, country: buyer.country)
+            let buyerEmail = c.buyerSMTP.isEmpty ? (buyer.email ?? c.buyerEmail) : c.buyerSMTP
+            if !buyerEmail.isEmpty {
+                x.open("ram:URIUniversalCommunication")
+                x.element("ram:URIID", buyerEmail, attributes: [("schemeID", "EM")]) // BT-49
+                x.close()
+            }
             if let vatId = buyer.vatId {
                 x.open("ram:URIUniversalCommunication")
                 x.element("ram:URIID", vatId, attributes: [("schemeID", "9930")]) // BT-49
